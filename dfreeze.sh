@@ -8,15 +8,32 @@ then
 fi
 
 WORK_DIR=`mktemp -d`
-MODULES_DIR=/lib/modules/`uname -r`/kernel
+WORK_DIR_INITRD="${WORK_DIR}/initrd"
+UNAME=`uname -r`
+MODULES_DIR="/lib/modules/${UNAME}/kernel"
+
+echo "${WORK_DIR}"
+
+#initial detection
+KERNEL_PATH=/boot/vmlinuz
+if ! [ -e "${KERNEL_PATH}" ]
+then
+  KERNEL_PATH="/boot/vmlinuz-${UNAME}"
+fi
+if ! [ -e "${KERNEL_PATH}" ]
+then
+	printf "cannot locate kernel, tried %s\n" "${KERNEL_PATH}"
+	exit 1
+fi
 
 copy_file(){
 	set -e
 	NAME="$1"
 	DIR=`dirname ${NAME}`
-	mkdir -p "${WORK_DIR}${DIR}"
-	echo "${NAME}"
-	cp -a "${NAME}" "${WORK_DIR}${NAME}"
+	[ -e "${WORK_DIR_INITRD}${NAME}" ] && return
+	mkdir -p "${WORK_DIR_INITRD}${DIR}"
+	#echo "${NAME}"
+	cp -a "${NAME}" "${WORK_DIR_INITRD}${NAME}"
 }
 
 copy_module(){
@@ -49,7 +66,18 @@ copy_exe(){
 	done
 }
 
-#rm -rI "${WORK_DIR}"
+#create initrd
+#rm -rI "${WORK_DIR_INITRD}"
+mkdir -p ${WORK_DIR_INITRD}/kernel/x86/microcode
+
+if [ -d /lib/firmware/amd-ucode ]; then
+        cat /lib/firmware/amd-ucode/microcode_amd*.bin > ${WORK_DIR_INITRD}/kernel/x86/microcode/AuthenticAMD.bin
+fi
+
+if [ -d /lib/firmware/intel-ucode ]; then
+        cat /lib/firmware/intel-ucode/* > ${WORK_DIR_INITRD}/kernel/x86/microcode/GenuineIntel.bin
+fi
+
 copy_module_dir drivers/nvme
 copy_module_dir drivers/ata
 copy_module_dir drivers/usb
@@ -61,7 +89,48 @@ copy_module squashfs
 copy_module fat
 copy_module exfat
 copy_module ext4
-#copy_exe cryptsetup
-echo "${WORK_DIR}"
-cd "${WORK_DIR}"
+copy_module overlay
+#copy_module ramfs
+copy_file "/lib/modules/${UNAME}/modules.order"
+copy_file "/lib/modules/${UNAME}/modules.builtin"
+copy_exe sh
+copy_exe mount
+copy_exe mkdir
+copy_exe dd
+copy_exe cat
+copy_exe grep
+copy_exe cut
+copy_exe xargs
+copy_exe sed
+copy_exe modprobe
+copy_exe insmod
+copy_exe blkid
+copy_exe switch_root
+copy_exe sleep
+copy_exe [
+copy_exe printf
+
+MYDIR=`dirname $0`
+cp "${MYDIR}/init.sh" "${WORK_DIR_INITRD}/init"
+
+chmod +x ${WORK_DIR_INITRD}/init
+
+cd "${WORK_DIR_INITRD}"
+printf "initrd size: "
 du -hs
+find . | cpio -o -H newc > ../initrdx.img
+
+cd "${WORK_DIR}"
+rm -rf ./initrd
+
+#copy kernel
+cp "${KERNEL_PATH}" "${WORK_DIR}/linux64.efi"
+
+#create rootfs
+cat >"${WORK_DIR}/exclude.lst" <<EOF
+/tmp
+/etc/fstab
+${WORK_DIR}
+EOF 
+mksquashfs / "${WORK_DIR}/rootfs.sfs" -comp zstd -one-file-system -ef "${WORK_DIR}/exclude.lst" 
+rm "${WORK_DIR}/exclude.lst"
