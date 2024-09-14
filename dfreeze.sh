@@ -18,7 +18,7 @@ echo "${WORK_DIR}"
 KERNEL_PATH=/boot/vmlinuz
 if ! [ -e "${KERNEL_PATH}" ]
 then
-  KERNEL_PATH="/boot/vmlinuz-${UNAME}"
+	KERNEL_PATH="/boot/vmlinuz-${UNAME}"
 fi
 if ! [ -e "${KERNEL_PATH}" ]
 then
@@ -33,7 +33,7 @@ copy_file(){
 	[ -e "${WORK_DIR_INITRD}${NAME}" ] && return
 	mkdir -p "${WORK_DIR_INITRD}${DIR}"
 	#echo "${NAME}"
-	cp -a "${NAME}" "${WORK_DIR_INITRD}${NAME}"
+	cp "${NAME}" "${WORK_DIR_INITRD}${NAME}"
 }
 
 copy_module(){
@@ -71,11 +71,11 @@ copy_exe(){
 mkdir -p ${WORK_DIR_INITRD}/kernel/x86/microcode
 
 if [ -d /lib/firmware/amd-ucode ]; then
-        cat /lib/firmware/amd-ucode/microcode_amd*.bin > ${WORK_DIR_INITRD}/kernel/x86/microcode/AuthenticAMD.bin
+	cat /lib/firmware/amd-ucode/microcode_amd*.bin > ${WORK_DIR_INITRD}/kernel/x86/microcode/AuthenticAMD.bin
 fi
 
 if [ -d /lib/firmware/intel-ucode ]; then
-        cat /lib/firmware/intel-ucode/* > ${WORK_DIR_INITRD}/kernel/x86/microcode/GenuineIntel.bin
+	cat /lib/firmware/intel-ucode/* > ${WORK_DIR_INITRD}/kernel/x86/microcode/GenuineIntel.bin
 fi
 
 copy_module_dir drivers/nvme
@@ -93,27 +93,39 @@ copy_module overlay
 #copy_module ramfs
 copy_file "/lib/modules/${UNAME}/modules.order"
 copy_file "/lib/modules/${UNAME}/modules.builtin"
-copy_exe sh
-copy_exe mount
-copy_exe mkdir
-copy_exe dd
-copy_exe cat
-copy_exe grep
-copy_exe cut
-copy_exe xargs
-copy_exe sed
-copy_exe modprobe
-copy_exe insmod
+#copy_exe /bin/sh
+#copy_exe mount
+#copy_exe mkdir
+#copy_exe dd
+#copy_exe cat
+#copy_exe grep
+#copy_exe cut
+#copy_exe xargs
+#copy_exe sed
+#copy_exe modprobe
+#copy_exe insmod
+#copy_exe switch_root
+#copy_exe sleep
+#copy_exe mknod
+#copy_exe [
 copy_exe blkid
-copy_exe switch_root
-copy_exe sleep
-copy_exe [
-copy_exe printf
+#the loader
+LINKER=`ldd /bin/sh|tail -n1|cut -f2|cut -f1 -d " "`
+copy_file "${LINKER}" 
 
-MYDIR=`dirname $0`
+MYDIR=`dirname $(realpath $0)`
+if which busybox
+then
+	BUSYBOX=`which busybox`
+else
+	BUSYBOX="${MYDIR}/busybox"
+fi
+mkdir -p "${WORK_DIR_INITRD}/bin"
 cp "${MYDIR}/init.sh" "${WORK_DIR_INITRD}/init"
+cp "${BUSYBOX}" "${WORK_DIR_INITRD}/bin/busybox"
 
-chmod +x ${WORK_DIR_INITRD}/init
+chmod +x "${WORK_DIR_INITRD}/init"
+chmod +x "${WORK_DIR_INITRD}/bin/busybox"
 
 cd "${WORK_DIR_INITRD}"
 printf "initrd size: "
@@ -131,6 +143,12 @@ cat >"${WORK_DIR}/exclude.lst" <<EOF
 /tmp
 /etc/fstab
 ${WORK_DIR}
-EOF 
-mksquashfs / "${WORK_DIR}/rootfs.sfs" -comp zstd -one-file-system -ef "${WORK_DIR}/exclude.lst" 
-rm "${WORK_DIR}/exclude.lst"
+EOF
+
+if [ "$1" = "rootfs" ]
+then
+	mksquashfs / "${WORK_DIR}/rootfs.sfs" -comp zstd -one-file-system -ef "${WORK_DIR}/exclude.lst" 
+	rm "${WORK_DIR}/exclude.lst"
+else
+	cp "${WORK_DIR}/initrdx.img" "${MYDIR}/"
+fi

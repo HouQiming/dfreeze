@@ -1,9 +1,13 @@
-#!/bin/sh
+#!/bin/busybox sh
+/bin/busybox mkdir -p /sbin /usr/bin /usr/sbin /proc /sys /dev /sysroot /tmp \
+        /media/cdrom /media/usb /run /lib /sysroot /usr/lib
+/bin/busybox --install -s
+echo "sh loaded"
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 abort_to_shell() {
 	while true ;do
-		printf "%s\n" "$1"
+		echo "$1"
 		/bin/sh
 	done
 	exit 1
@@ -17,23 +21,34 @@ mount -t sysfs -o noexec,nosuid,nodev sysfs /sys
 mount -t devtmpfs -o exec,nosuid,mode=0755,size=2M devtmpfs /dev 2>/dev/null \
 	|| mount -t tmpfs -o exec,nosuid,mode=0755,size=2M tmpfs /dev
 
-INITRDX=`cat /proc/cmdline | sed -e 's/^.*initrd=//' -e 's/ .*$//' -e 's%\\%/%g'`
+echo "basic runtime up"
+
+depmod -a
+INITRDX=`cat /proc/cmdline | sed -e 's/^.*initrd=//' -e 's/ .*$//' -e 's%\\\%/%g'`
 ESPUUID=`cat /proc/cmdline | sed -e 's/^.*espuuid=//' -e 's/ .*$//'`
-while [ "${TO_BOOT}" = "refresh" ]
+COUNTER=0
+while true
 do
+	echo "waiting for esp ${ESPUUID}"
+	echo "initrd is ${INITRDX}"
 	grep -h MODALIAS /sys/bus/*/devices/*/uevent | cut -d= -f2 | xargs modprobe -abq 2>/dev/null
 	BLKID_OUTPUT=`blkid`
-	ESPPATH=`echo "${BLKID_OUTPUT}"|grep "PARTUUID=\"${ESPUUID}\""|cut -d: -f1`
+	ESPPATH=`echo "${BLKID_OUTPUT}"|grep "${ESPUUID}"|cut -d: -f1`
 	if [ -z "${ESPPATH}" ]
 	then
 		if [ ${COUNTER} -lt 10 ]
 		then
 			COUNTER=$(( COUNTER + 1 ))
 			sleep 0.5s
-			continue
+		else
+			break
 		fi
+	else
+		break
 	fi
 done
+
+echo "copy rootfs.sfs from ${ESPPATH}"
 
 mkdir -p /mnt/efi
 mkdir -p /sysroot/lower /sysroot/upper /sysroot/work /sysroot/root
@@ -43,6 +58,7 @@ cp "${BOOTDIR}/rootfs.sfs" /rootfs.sfs
 umount /mnt/efi
 
 #mount the squashfs hierarchy
+echo "mount squashfs"
 modprobe squashfs
 mount -t squashfs /rootfs.sfs /sysroot/lower
 mount -t ramfs ramfs /sysroot/upper
@@ -55,6 +71,6 @@ then
 	INIT=/init
 fi
 
-printf "switch_root and run ${INIT}...\n"
+echo "switch_root and run ${INIT}...\n"
 exec switch_root /sysroot/root ${INIT}
 abort_to_shell "failed to switch_root"
