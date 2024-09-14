@@ -92,8 +92,11 @@ copy_module fat
 copy_module vfat
 copy_module exfat
 copy_module ext4
+copy_module btrfs
 copy_module overlay
 copy_module loop
+copy_module dm-crypt
+copy_module virtio_blk
 #copy_module ramfs
 copy_file "/lib/modules/${UNAME}/modules.order"
 copy_file "/lib/modules/${UNAME}/modules.builtin"
@@ -113,6 +116,8 @@ copy_file "/lib/modules/${UNAME}/modules.builtin"
 #copy_exe mknod
 #copy_exe [
 copy_exe blkid
+copy_exe cryptsetup
+copy_exe fsck.ext4
 #the loader
 LINKER=`ldd /bin/sh|tail -n1|cut -f2|cut -f1 -d " "`
 copy_file "${LINKER}" 
@@ -146,13 +151,23 @@ cp "${KERNEL_PATH}" "${WORK_DIR}/linux64.efi"
 cat >"${WORK_DIR}/exclude.lst" <<EOF
 /tmp
 /etc/fstab
+/home
 ${WORK_DIR}
 EOF
+
+#patch up bootx64
+KRNLCMD_OFFSET=`grep -abo " KRNLCMD " bootx64.efi|cut -d: -f 1`
+cp bootx64.efi "${WORK_DIR}/"
+dd if=/dev/zero of="${WORK_DIR}/bootx64.efi" bs=1 count=128 seek=${KRNLCMD_OFFSET}
+cat /proc/cmdline | sed 's/root=[^ ]*//' | sed 's/initrd=[^ ]*//' | dd of="${WORK_DIR}/bootx64.efi" bs=1 seek=${KRNLCMD_OFFSET}
 
 if [ "$1" = "rootfs" ]
 then
 	mksquashfs / "${WORK_DIR}/rootfs.sfs" -comp zstd -one-file-system -ef "${WORK_DIR}/exclude.lst" 
-	rm "${WORK_DIR}/exclude.lst"
 else
-	cp "${WORK_DIR}/initrdx.img" "${MYDIR}/"
+	rm -rf "${MYDIR}/build/output"
+	mkdir -p "${MYDIR}/build/output"
+	cp "${WORK_DIR}/linux64.efi" "${WORK_DIR}/initrdx.img" "${WORK_DIR}/bootx64.efi" "${MYDIR}/build/output/"
 fi
+
+rm "${WORK_DIR}/exclude.lst"
