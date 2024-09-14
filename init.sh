@@ -2,7 +2,7 @@
 /bin/busybox mkdir -p /sbin /usr/bin /usr/sbin /proc /sys /dev /sysroot /tmp \
         /media/cdrom /media/usb /run /lib /sysroot /usr/lib
 /bin/busybox --install -s
-echo "sh loaded"
+#echo "sh loaded"
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 abort_to_shell() {
@@ -21,7 +21,7 @@ mount -t sysfs -o noexec,nosuid,nodev sysfs /sys
 mount -t devtmpfs -o exec,nosuid,mode=0755,size=2M devtmpfs /dev 2>/dev/null \
 	|| mount -t tmpfs -o exec,nosuid,mode=0755,size=2M tmpfs /dev
 
-echo "basic runtime up"
+#echo "basic runtime up"
 
 depmod -a
 INITRDX=`cat /proc/cmdline | sed -e 's/^.*initrd=//' -e 's/ .*$//' -e 's%\\\%/%g'`
@@ -51,19 +51,24 @@ done
 echo "copy rootfs.sfs from ${ESPPATH}"
 
 mkdir -p /mnt/efi
-mkdir -p /sysroot/lower /sysroot/upper /sysroot/work /sysroot/root
-mount -o ro "${ESPPATH}" /mnt/efi || abort_to_shell "failed to mount ESP"
+modprobe fat
+modprobe vfat
+modprobe exfat
+mount -o ro "${ESPPATH}" /mnt/efi || mount -o ro -t vfat "${ESPPATH}" /mnt/efi || abort_to_shell "failed to mount ESP"
 BOOTDIR=`dirname "/mnt/efi/${INITRDX}"`
 cp "${BOOTDIR}/rootfs.sfs" /rootfs.sfs
 umount /mnt/efi
 
 #mount the squashfs hierarchy
 echo "mount squashfs"
+modprobe loop
 modprobe squashfs
-mount -t squashfs /rootfs.sfs /sysroot/lower
-mount -t ramfs ramfs /sysroot/upper
-mount -t ramfs ramfs /sysroot/work
-mount -t overlay overlay -olowerdir=/sysroot/lower,upperdir=/sysroot/upper,workdir=/sysroot/work /sysroot/root
+modprobe overlay
+mkdir -p /sysroot
+mount -t ramfs ramfs /sysroot
+mkdir -p /sysroot/lower /sysroot/upper /sysroot/work /sysroot/root
+mount -t squashfs /rootfs.sfs /sysroot/lower || abort_to_shell "failed to mount root"
+mount -t overlay overlay -olowerdir=/sysroot/lower,upperdir=/sysroot/upper,workdir=/sysroot/work /sysroot/root || abort_to_shell "failed to mount overlay"
 
 INIT=/sbin/init
 if [ -e /sysroot/root/init ]
