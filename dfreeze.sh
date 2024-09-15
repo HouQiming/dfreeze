@@ -156,10 +156,16 @@ ${WORK_DIR}
 EOF
 
 #patch up bootx64
-KRNLCMD_OFFSET=`grep -abo " KRNLCMD " bootx64.efi|cut -d: -f 1`
-cp bootx64.efi "${WORK_DIR}/"
-dd if=/dev/zero of="${WORK_DIR}/bootx64.efi" bs=1 count=128 seek=${KRNLCMD_OFFSET}
-cat /proc/cmdline | sed 's/root=[^ ]*//' | sed 's/initrd=[^ ]*//' | dd of="${WORK_DIR}/bootx64.efi" bs=1 seek=${KRNLCMD_OFFSET}
+cp "${MYDIR}/bootx64.efi" "${WORK_DIR}/"
+KRNLCMD_OFFSET=`grep -abo "KRNLCMD " "${WORK_DIR}/bootx64.efi"|cut -d: -f 1`
+dd if=/dev/zero of="${WORK_DIR}/bootx64.efi" bs=1 count=128 seek=${KRNLCMD_OFFSET} conv=notrunc
+EXTRA_CMDLINE="iommu=on intel_iommu=on"
+CURRENT_CMDLINE=`cat /proc/cmdline | \
+	sed 's/root=[^ ]*//' | \
+	sed 's/rootflags=[^ ]*//' | \
+	sed 's/initrd=[^ ]*//' | \
+	sed 's/BOOT_IMAGE=[^ ]*//'`
+printf "${CURRENT_CMDLINE} ${EXTRA_CMDLINE}" | dd of="${WORK_DIR}/bootx64.efi" bs=1 seek=${KRNLCMD_OFFSET} conv=notrunc
 
 if [ "$1" = "rootfs" ]
 then

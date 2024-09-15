@@ -75,12 +75,23 @@ loadsfs(){
 	mount -t ramfs ramfs /sysroot
 	mkdir -p /sysroot/lower /sysroot/upper /sysroot/work /sysroot/root
 	mount -t squashfs /rootfs.sfs /sysroot/lower || return 1
-	mount -t overlay overlay -olowerdir=/sysroot/lower,upperdir=/sysroot/upper,workdir=/sysroot/work /sysroot/root || return 1
+	mount -t overlay overlay /sysroot/root -olowerdir=/sysroot/lower,upperdir=/sysroot/upper,workdir=/sysroot/work || return 1
+	#clobber grub!
+	rf -rf /sysroot/root/etc/grub* /sysroot/root/etc/default/grub \
+		/sysroot/root/usr/sbin/update-grub /sysroot/root/usr/bin/update-grub \
+		/sysroot/root/bin/update-grub /sysroot/root/sbin/update-grub
+	#emulate /boot/efi, but point to ramfs
+	mkdir -p /sysroot/root/boot/efi
 }
 
 loadsfs &
 # attempt to mount LUKS while we load the sfs
 LUKSPATH=`echo "${BLKID_OUTPUT}"|grep "${ESPPATH%?}"|grep "LUKS"|cut -d: -f1`
+echo "LUKSPATH is ${LUKSPATH}"
+if [ -z "${LUKSPATH}" ]
+then
+	LUKSPATH=`echo "${BLKID_OUTPUT}"|grep "LUKS"|cut -d: -f1`
+fi
 if [ -e "${LUKSPATH}" ]
 then
 	echo "found LUKS home at ${LUKSPATH}"
@@ -121,6 +132,6 @@ fi
 
 [ -e "/sysroot/root${INIT}" ] || abort_to_shell "sysroot not bootable"
 
-echo "switch_root and run ${INIT}...\n"
+echo "switch_root and run ${INIT}..."
 exec switch_root /sysroot/root ${INIT}
 abort_to_shell "failed to switch_root"

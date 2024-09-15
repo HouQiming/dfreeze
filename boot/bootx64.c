@@ -12,7 +12,7 @@
 #define NULL ((void*)0)
 
 CHAR8 g_kernel_command8[512]=" KRNLCMD iommu=on intel_iommu=on rd.driver.blacklist=nouveau modprobe.blacklist=nouveau quiet";
-CHAR16 g_kernel_command[512];
+CHAR16 g_kernel_command16[512];
 
 EFI_HANDLE g_image_handle;
 EFI_SYSTEM_TABLE* g_system_table;
