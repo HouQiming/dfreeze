@@ -152,8 +152,11 @@ cat >"${WORK_DIR}/exclude.lst" <<EOF
 /tmp
 /etc/fstab
 /home
+/luks
 ${WORK_DIR}
 EOF
+
+cat /proc/mounts |cut -d ' ' -f 2 >> "${WORK_DIR}/exclude.lst"
 
 #patch up bootx64
 cp "${MYDIR}/bootx64.efi" "${WORK_DIR}/"
@@ -164,16 +167,42 @@ CURRENT_CMDLINE=`cat /proc/cmdline | \
 	sed 's/root=[^ ]*//' | \
 	sed 's/rootflags=[^ ]*//' | \
 	sed 's/initrd=[^ ]*//' | \
-	sed 's/BOOT_IMAGE=[^ ]*//'`
+	sed 's/espuuid=[^ ]*//g' | \
+	sed 's/BOOT_IMAGE=[^ ]*//' | \
+	sed "s/${EXTRA_CMDLINE}//g" |
+	sed 's/  */ /g'`
 printf "${CURRENT_CMDLINE} ${EXTRA_CMDLINE}" | dd of="${WORK_DIR}/bootx64.efi" bs=1 seek=${KRNLCMD_OFFSET} conv=notrunc
+
+rm -rf "${MYDIR}/build/output"
+mkdir -p "${MYDIR}/build/output"
 
 if [ "$1" = "rootfs" ]
 then
-	mksquashfs / "${WORK_DIR}/rootfs.sfs" -comp zstd -one-file-system -ef "${WORK_DIR}/exclude.lst" 
+	#-one-file-system fails on overlayfs
+	mksquashfs / "${WORK_DIR}/rootfs.sfs" -comp zstd -ef "${WORK_DIR}/exclude.lst" 
+fi
+
+ESPUUID=`cat /proc/cmdline | sed -e 's/^.*espuuid=//' -e 's/ .*$//'`
+INITRDX=`cat /proc/cmdline | sed -e 's/^.*initrd=//' -e 's/ .*$//' -e 's%\\\%/%g'`
+ESPPATH=`blkid|grep "${ESPUUID}"|cut -d: -f1`
+if [ -e "${ESPPATH}" ]
+then
+	mkdir -p /boot/efi
+	mount "${ESPPATH}" /boot/efi
+	BOOTDIR=`dirname "/boot/efi/${INITRDX}"`
+	echo "installing to ${BOOTDIR}"
+	cp "${WORK_DIR}/linux64.efi" "${WORK_DIR}/initrdx.img" "${WORK_DIR}/bootx64.efi" "${BOOTDIR}/"
+	if [ "$1" = "rootfs" ]
+	then
+		mv "${WORK_DIR}/rootfs.sfs" "${BOOTDIR}/"
+	fi
+	umount /boot/efi
 else
-	rm -rf "${MYDIR}/build/output"
-	mkdir -p "${MYDIR}/build/output"
-	cp "${WORK_DIR}/linux64.efi" "${WORK_DIR}/initrdx.img" "${WORK_DIR}/bootx64.efi" "${MYDIR}/build/output/"
+	mv "${WORK_DIR}/linux64.efi" "${WORK_DIR}/initrdx.img" "${WORK_DIR}/bootx64.efi" "${MYDIR}/build/output/"
+	if [ "$1" = "rootfs" ]
+	then
+		mv "${WORK_DIR}/rootfs.sfs" "${MYDIR}/build/output/"
+	fi
 fi
 
 rm "${WORK_DIR}/exclude.lst"

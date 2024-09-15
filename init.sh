@@ -65,7 +65,6 @@ loadsfs(){
 	mount -o ro "${ESPPATH}" /mnt/efi || mount -o ro -t vfat "${ESPPATH}" /mnt/efi || return 1
 	BOOTDIR=`dirname "/mnt/efi/${INITRDX}"`
 	cp "${BOOTDIR}/rootfs.sfs" /rootfs.sfs
-	umount /mnt/efi
 	
 	#mount the squashfs hierarchy
 	modprobe loop
@@ -77,11 +76,14 @@ loadsfs(){
 	mount -t squashfs /rootfs.sfs /sysroot/lower || return 1
 	mount -t overlay overlay /sysroot/root -olowerdir=/sysroot/lower,upperdir=/sysroot/upper,workdir=/sysroot/work || return 1
 	#clobber grub!
-	rf -rf /sysroot/root/etc/grub* /sysroot/root/etc/default/grub \
+	rm -rf /sysroot/root/etc/grub* /sysroot/root/etc/default/grub \
 		/sysroot/root/usr/sbin/update-grub /sysroot/root/usr/bin/update-grub \
 		/sysroot/root/bin/update-grub /sysroot/root/sbin/update-grub
-	#emulate /boot/efi, but point to ramfs
+	#emulate /boot for recursive dfreeze, but point it to ramfs
 	mkdir -p /sysroot/root/boot/efi
+	mkdir -p /sysroot/root/home
+	cp "${BOOTDIR}/linux64.efi" /sysroot/root/boot/vmlinuz
+	umount /mnt/efi
 }
 
 loadsfs &
