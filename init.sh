@@ -71,7 +71,8 @@ loadsfs(){
 	modprobe squashfs
 	modprobe overlay
 	mkdir -p /sysroot
-	mount -t ramfs ramfs /sysroot
+	#tmpfs instead of ramfs for overlayfs xattrs
+	mount -t tmpfs tmpfs /sysroot
 	mkdir -p /sysroot/lower /sysroot/upper /sysroot/work /sysroot/root
 	mount -t squashfs /rootfs.sfs /sysroot/lower || return 1
 	mount -t overlay overlay /sysroot/root -olowerdir=/sysroot/lower,upperdir=/sysroot/upper,workdir=/sysroot/work || return 1
@@ -82,6 +83,7 @@ loadsfs(){
 	#emulate /boot for recursive dfreeze, but point it to ramfs
 	mkdir -p /sysroot/root/boot/efi
 	mkdir -p /sysroot/root/home
+	cp -a /home/* /sysroot/root/home/
 	cp "${BOOTDIR}/linux64.efi" /sysroot/root/boot/vmlinuz
 	umount /mnt/efi
 }
@@ -106,17 +108,20 @@ then
 	}
 	cryptsetup --allow-discards luksOpen "${LUKSPATH}" luksroot
 	[ -e /dev/mapper/luksroot ] || retry
-	[ -e /dev/mapper/luksroot ] || retry
 	if [ -e /dev/mapper/luksroot ]
 	then
 		fsck.ext4 /dev/mapper/luksroot
 		wait || abort_to_shell "failed to setup root sfs"
 		mkdir -p /sysroot/root/luks
 		mount -o errors=remount-ro /dev/mapper/luksroot /sysroot/root/luks || abort_to_shell "unable to mount the decrypted ${LUKSPATH}"
+		rmdir /sysroot/root/home/*
+		#ln -s /sysroot/root/luks /luks
 		if [ -e /sysroot/root/luks/home ]
 		then
+			#ln -s /luks/home/* /sysroot/root/home/
 			mount --bind /sysroot/root/luks/home /sysroot/root/home
 		else
+			#ln -s /luks/* /sysroot/root/home/
 			mount --bind /sysroot/root/luks /sysroot/root/home
 		fi
 	else
@@ -125,6 +130,42 @@ then
 fi
 
 wait || abort_to_shell "failed to setup root sfs"
+
+#setup remount script
+if [ -e "${LUKSPATH}" ]
+then
+#LUKSPATH is /dev/sd?? and won't remain valid after disk yanking
+LUKSUUID=`blkid "${LUKSPATH}"|cut -d ' ' -f2|sed 's/.*="//;s/"//'`
+mkdir -p /sysroot/root/usr/bin/
+##########################
+cat > /sysroot/root/usr/bin/remount-home <<EOF
+#!/bin/sh
+if [ "\${EUID}" -ne 0 ]
+then
+	echo "we need sudo"
+	exit 1
+fi
+umount /home 2>/dev/null
+umount -f /home 2>/dev/null
+umount /luks 2>/dev/null
+umount -f /luks 2>/dev/null
+#this can't possibly work after disk yanking: it'll be still in-use
+#cryptsetup luksClose luksroot 2>/dev/null
+set -e
+NEW_DM_NAME=\$(basename \$(mktemp -u))
+cryptsetup --allow-discards luksOpen "/dev/disk/by-uuid/${LUKSUUID}" "\${NEW_DM_NAME}" || exit
+fsck.ext4 "/dev/mapper/\${NEW_DM_NAME}"
+mount -o errors=remount-ro "/dev/mapper/\${NEW_DM_NAME}" /luks || exit
+if [ -e /luks/home ]
+then
+	mount --bind /luks/home /home
+else
+	mount --bind /luks /home
+fi
+EOF
+##########################
+chmod +x /sysroot/root/usr/bin/remount-home
+fi
 
 INIT=/sbin/init
 if [ -e /sysroot/root/init ]

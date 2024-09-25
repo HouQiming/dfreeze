@@ -1,6 +1,6 @@
 ## What it does
 
-`sudo dfreeze.sh` packages your current Linux system into 4 files in `./build/output`:
+`sudo dfreeze.sh rootfs` packages your current Linux system into 4 files in `./build/output`:
 
 ```
 bootx64.efi
@@ -11,15 +11,17 @@ rootfs.sfs
 
 Put them into the `/EFI/BOOT` folder of any FAT/VFAT/exFAT-formated USB stick. They should appear bootable in modern BIOS-es and can boot into an immutable copy of the Linux system you create them on, minus your home folder. You can make changes after you boot but they won't persist. If things fail, try partitioning the USB disk with GPT (the non-MBR partition table format, not the AI).
 
-If you have any LUKS-encrypted ext4/btrfs partition on the same USB stick, it will be mounted to `/home` after a password prompt. Type a wrong password thrice to cancel that. If you have a `/home` folder on the LUKS partition, that `/home` will be mounted instead.
+If you have any LUKS-encrypted ext4/btrfs partition on the same USB stick, it will be mounted to `/home` after a password prompt. Keep typing a wrong password to cancel that. If you have a `/home` folder on the LUKS partition, that `/home` will be mounted instead.
 
 If you don't mount `/home`, you can unplug the USB stick after the system boots. Everything runs in RAM by that point. 
 
 Your RAM size has to be larger enough to hold all your system files. At least 8G for a fresh install of popular workstation distros. Your disk has to be at least 50% empty if you run this on a newly-installed Linux system, which I recommend.
 
-If you run `sudo dfreeze.sh` inside a system prepared by itself, it will perform an in-place update and persist whatever changes you made during the current boot.
+If you run `sudo dfreeze.sh` inside a system prepared by itself, it will perform an in-place update and persist whatever changes you made during the current boot. Omitting the `rootfs` part will avoid recreating `rootfs.sfs`, useful for a simple kernel update.
 
 I strongly recommend uninstalling `grub` or any other bootloader and updating after the initial setup works. This project comes with its own bootloader.
+
+In case the USB stick disconnects after the LUKS home partition were mounted, run `sudo remount-home` to hopefully fix it.
 
 ## Dependencies and building from source
 
@@ -42,3 +44,5 @@ It packs `/` into a squashfs image `rootfs.sfs`. The `bootx64.efi` shim passes t
 The kernel command line is monkey-patched into the `bootx64.efi` executable.
 
 The scripts drop grub configuration and `/etc/fstab` to discourage the immutable system from screwing up itself.
+
+To support `remount-home`, the user home folders are symlinked into `/home` to better support remounting the underlying storage.

@@ -7,6 +7,7 @@ then
 	exit 1
 fi
 
+USER_NAME="${SUDO_USER}"
 WORK_DIR=`mktemp -d`
 WORK_DIR_INITRD="${WORK_DIR}/initrd"
 UNAME=`uname -r`
@@ -135,6 +136,8 @@ cp "${BUSYBOX}" "${WORK_DIR_INITRD}/bin/busybox"
 
 chmod +x "${WORK_DIR_INITRD}/init"
 chmod +x "${WORK_DIR_INITRD}/bin/busybox"
+mkdir -p "${WORK_DIR_INITRD}/home/${USER_NAME}"
+chown "${USER_NAME}:${USER_NAME}" "${WORK_DIR_INITRD}/home/${USER_NAME}"
 
 cd "${WORK_DIR_INITRD}"
 printf "initrd size: "
