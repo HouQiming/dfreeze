@@ -44,5 +44,3 @@ It packs `/` into a squashfs image `rootfs.sfs`. The `bootx64.efi` shim passes t
 The kernel command line is monkey-patched into the `bootx64.efi` executable.
 
 The scripts drop grub configuration and `/etc/fstab` to discourage the immutable system from screwing up itself.
-
-To support `remount-home`, the user home folders are symlinked into `/home` to better support remounting the underlying storage.
