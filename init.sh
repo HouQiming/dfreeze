@@ -27,6 +27,7 @@ depmod -a
 INITRDX=`cat /proc/cmdline | sed -e 's/^.*initrd=//' -e 's/ .*$//' -e 's%\\\%/%g'`
 ESPUUID=`cat /proc/cmdline | sed -e 's/^.*espuuid=//' -e 's/ .*$//'`
 COUNTER=0
+modprobe uas
 while true
 do
 	#echo "waiting for esp ${ESPUUID}"
@@ -136,6 +137,7 @@ if [ -e "${LUKSPATH}" ]
 then
 #LUKSPATH is /dev/sd?? and won't remain valid after disk yanking
 LUKSUUID=`blkid "${LUKSPATH}"|cut -d ' ' -f2|sed 's/.*="//;s/"//'`
+mkdir -p /sysroot/root/var/log/
 mkdir -p /sysroot/root/usr/bin/
 ##########################
 cat > /sysroot/root/usr/bin/remount-home <<EOF

@@ -10,16 +10,20 @@ fi
 USER_NAME="${SUDO_USER}"
 WORK_DIR=`mktemp -d`
 WORK_DIR_INITRD="${WORK_DIR}/initrd"
-UNAME=`uname -r`
+if [ "${UNAME}" = "" ]
+then
+	UNAME=`uname -r`
+fi
+UNAME0=`uname -r`
 MODULES_DIR="/lib/modules/${UNAME}/kernel"
 
-echo "${WORK_DIR}"
+echo "${UNAME} ${WORK_DIR}"
 
 #initial detection
-KERNEL_PATH=/boot/vmlinuz
+KERNEL_PATH="/boot/vmlinuz-${UNAME}"
 if ! [ -e "${KERNEL_PATH}" ]
 then
-	KERNEL_PATH="/boot/vmlinuz-${UNAME}"
+	KERNEL_PATH=/boot/vmlinuz
 fi
 if ! [ -e "${KERNEL_PATH}" ]
 then
@@ -39,7 +43,7 @@ copy_file(){
 
 copy_module(){
 	set -e
-	MODULE_FILES=`modprobe -D "$1"|grep insmod|cut -f 2 -d " "`
+	MODULE_FILES=`modprobe -D "$1"|grep insmod|cut -f 2 -d " "|sed 's/${UNAME0}/${UNAME}/g'`
 	for i in ${MODULE_FILES}
 	do
 		copy_file "$i"
@@ -156,6 +160,7 @@ cat >"${WORK_DIR}/exclude.lst" <<EOF
 /etc/fstab
 /home
 /luks
+/var/log
 ${WORK_DIR}
 EOF
 
