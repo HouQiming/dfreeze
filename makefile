@@ -1,6 +1,6 @@
-cc = clang-10
+cc = clang
 cflags_efi = -I efi -target x86_64-pc-win32-coff -ffreestanding -fno-stack-protector -fshort-wchar -mno-red-zone
-ld = lld-link-10
+ld = lld-link
 lflags_efi = -subsystem:efi_application -nodefaultlib -dll
 
 bootx64.efi: build/bootx64.obj

@@ -176,6 +176,9 @@ cat >"${WORK_DIR}/exclude.lst" <<EOF
 ${WORK_DIR}
 EOF
 
+find /var/cache -iname '*.rpm' >> "${WORK_DIR}/exclude.lst" 
+find /var/cache -iname '*.deb' >> "${WORK_DIR}/exclude.lst"
+
 cat /proc/mounts |cut -d ' ' -f 2 >> "${WORK_DIR}/exclude.lst"
 
 #patch up bootx64
