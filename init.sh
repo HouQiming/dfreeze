@@ -92,14 +92,14 @@ loadsfs(){
 loadsfs &
 # attempt to mount LUKS while we load the sfs
 LUKSPATH=`echo "${BLKID_OUTPUT}"|grep "${ESPPATH%?}"|grep "LUKS"|cut -d: -f1`
-echo "LUKSPATH is ${LUKSPATH}"
+#echo "LUKSPATH is ${LUKSPATH}"
 if [ -z "${LUKSPATH}" ]
 then
 	LUKSPATH=`echo "${BLKID_OUTPUT}"|grep "LUKS"|cut -d: -f1`
 fi
 if [ -e "${LUKSPATH}" ]
 then
-	echo "found LUKS home at ${LUKSPATH}"
+	#echo "found LUKS home at ${LUKSPATH}"
 	modprobe dm-crypt
 	modprobe ext4
 	#modprobe btrfs

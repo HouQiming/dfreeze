@@ -12,9 +12,20 @@ WORK_DIR=`mktemp -d`
 WORK_DIR_INITRD="${WORK_DIR}/initrd"
 if [ "${UNAME}" = "" ]
 then
+	# find newest kernel
+	UNAME=`ls /boot -t|grep vmlinuz-|head -n1|sed s/vmlinuz-//|tr -d '\n'` 
+	#echo ${UNAME}
+	#exit 1
+fi
+if [ "${UNAME}" = "" ]
+then
 	UNAME=`uname -r`
 fi
 UNAME0=`uname -r`
+if [ "${UNAME}" != "${UNAME0}" ]
+then
+	printf "found kernel update %s => %s\n" "${UNAME0}" "${UNAME}" 
+fi
 MODULES_DIR="/lib/modules/${UNAME}/kernel"
 
 echo "${UNAME} ${WORK_DIR}"
@@ -161,6 +172,7 @@ cat >"${WORK_DIR}/exclude.lst" <<EOF
 /home
 /luks
 /var/log
+/usr/lib64/firefox/browser/defaults
 ${WORK_DIR}
 EOF
 
