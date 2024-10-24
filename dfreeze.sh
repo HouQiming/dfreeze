@@ -54,10 +54,23 @@ copy_file(){
 
 copy_module(){
 	set -e
-	MODULE_FILES=`modprobe -D "$1"|grep insmod|cut -f 2 -d " "|sed 's/${UNAME0}/${UNAME}/g'`
+	if grep "/$1.ko" "${WORK_DIR}/modules.lst" > /dev/null
+	then
+		return
+	fi
+	MODULE_FILES=`find "${MODULES_DIR}" -iname $1.ko*`
+	#MODULE_FILES=`modprobe -D "$1"|grep insmod|cut -f 2 -d " "|sed 's/${UNAME0}/${UNAME}/g'`
 	for i in ${MODULE_FILES}
 	do
-		copy_file "$i"
+		echo "$i" >> "${WORK_DIR}/modules.lst"
+		#DEPS=`grep ' [^ ]*/'$(basename "$i") ${MODULES_DIR}/../modules.dep|cut -d ':' -f 1`
+		DEPS=`grep /$(basename "$i"): ${MODULES_DIR}/../modules.dep|cut -d ':' -f 2`
+		for j in ${DEPS}
+		do
+			BASE_I=`basename "$j"|cut -f 1 -d .`
+			#echo "$i => $j"
+			copy_module "${BASE_I}"
+		done
 	done
 }
 
@@ -94,6 +107,7 @@ if [ -d /lib/firmware/intel-ucode ]; then
 	cat /lib/firmware/intel-ucode/* > ${WORK_DIR_INITRD}/kernel/x86/microcode/GenuineIntel.bin
 fi
 
+touch "${WORK_DIR}/modules.lst"
 copy_module_dir drivers/nvme
 copy_module_dir drivers/ata
 copy_module_dir drivers/usb
@@ -101,6 +115,7 @@ copy_module_dir drivers/usb
 #copy_module_dir drivers/scsi
 copy_module_dir crypto
 copy_module_dir lib
+#copy_module usbhid
 copy_module thunderbolt
 copy_module uas
 copy_module squashfs
@@ -113,6 +128,13 @@ copy_module overlay
 copy_module loop
 copy_module dm-crypt
 copy_module virtio_blk
+ALL_MODULE_FILES=`cat "${WORK_DIR}/modules.lst"|sort|uniq`
+for i in ${ALL_MODULE_FILES}
+do
+	#echo $i
+	copy_file $i
+done
+#exit 1
 #copy_module ramfs
 copy_file "/lib/modules/${UNAME}/modules.order"
 copy_file "/lib/modules/${UNAME}/modules.builtin"
